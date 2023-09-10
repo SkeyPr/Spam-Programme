@@ -2,7 +2,7 @@
 
 A simple python programme that will type in the script of an entire movie line by line in your desired location
 
-Before executing the programme be sure to tread all the comments.
+Before executing the programme be sure to read all the comments.
 
 Use at your own risk
 
