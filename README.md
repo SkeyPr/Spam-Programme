@@ -8,4 +8,4 @@ Use at your own risk
 
 I do not encourage the use of this programme for any type of harm to anybody
 
-P.S. Check brainch "SRC" for all files
+P.S. Check branch "SRC" for all files
