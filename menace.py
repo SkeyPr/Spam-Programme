@@ -1,103 +1,118 @@
-#importing all necessary libraries
+#!/usr/bin/env python3
+"""Types a movie script line-by-line into the currently focused WhatsApp Web chat.
 
-import pyautogui  
-import time
+A joke/copypasta tool. Use it only on chats where the other person is in on
+the gag -- see the responsible-use note in the README.
+"""
+
 import os
-import keyboard
+import shutil
+import subprocess
+import sys
+import time
 
-time.sleep(5)
+import pyautogui
 
-killswitch_triggered = False
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-#defining functions for each movie script spamming
+# Seconds to pause between messages. Keep this >= ~0.3s: WhatsApp Web will drop
+# or throttle messages if you fire them too fast, and it keeps the kill-switch
+# responsive.
+DELAY_BETWEEN_LINES = 0.4
 
-def bee():
-    with open("bee.txt", "r") as f:
-        for word in f:
-            if killswitch_triggered:
-                return
-            pyautogui.typewrite(word)
-            pyautogui.press("enter")
+WEAPONS = {
+    "bee": "bee.txt",
+    "shrek": "shrek.txt",
+    "sausage": "sausage.txt",
+}
 
+# Kill-switch: pyautogui's fail-safe. Slam the mouse pointer into the TOP-LEFT
+# corner of the screen at any time to abort (raises FailSafeException). No root
+# and no extra library needed, unlike the `keyboard` module.
+pyautogui.FAILSAFE = True
 
-def shrek():
-    with open("shrek.txt", "r") as f:
-        for word in f:
-            if killswitch_triggered:
-                return
-            pyautogui.typewrite(word)
-            pyautogui.press("enter")
-            time.sleep(0)
-
-
-def sausage():
-    with open("sausage.txt", "r") as f:
-        for word in f:
-            if killswitch_triggered:
-                return
-            pyautogui.typewrite(word)
-            pyautogui.press("enter")
-            time.sleep(0)
-
-
-def killswitch_callback(event):
-    global killswitch_triggered
-    killswitch_triggered = True
+# --- Wayland note -----------------------------------------------------------
+# pyautogui types via XTEST, which only reaches X11 / XWayland windows. On a
+# Wayland session (GNOME, etc.) the default/snap browser usually runs as a
+# NATIVE Wayland client and receives NOTHING. So we launch Chromium forced into
+# X11 mode (--ozone-platform=x11) with its own profile; that window DOES receive
+# the keystrokes. (Verified on this machine.)
+CHROMIUM_X11_PROFILE = os.path.expanduser("~/snap/chromium/common/menace-profile")
 
 
-# Register the key combination Ctrl + Esc for killswitch
-keyboard.add_hotkey("Ctrl + Esc", killswitch_callback)
-
-app = input("Whatsapp or discord? \n")
-
-#Part of the programme that helps us in spamming on whatsapp
-
-if app == "whatsapp":
-    bruh = input("who/what do you want to spam: ")
-    ayo = input("Choose your weapon (bee/shrek/sausage): ")
-
-    whatsapp_path = r"ThePathToWhatsapp" #Enter here the path to your whatsapp desktop application
-    os.startfile(whatsapp_path)
-    time.sleep(10)
-    pyautogui.typewrite(bruh)
-    pyautogui.press("down")
-    pyautogui.press("enter")
-    time.sleep(8)
-
-    if ayo == "bee":
-        bee()
-    elif ayo == "shrek":
-        shrek()
-    elif ayo == "sausage":
-        sausage()
-
-# The part of the programme that will help in spamming on discord! (via your browser)
-
-elif app == "discord":
-    bruhh = input("who/what do you want to spam: ")
-    ayoo = input("Choose your weapon (bee/shrek/sausage): ")
-
-    if bruhh == "enterprompt":                                #Enter the pre-set prompt that you want to type a particular person on discord
-        promptlink = "enteryourlink"                          #Enter the link of the person's dm 
-        os.startfile(promptlink)                              #You can add more prompts of your own to type in your friends' dms
-        if ayoo == "bee":
-            bee()
-        elif ayoo == "shrek":
-            shrek()
-        elif ayoo == "sausage":
-            sausage()
+def find_chromium():
+    for name in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
+        path = shutil.which(name)
+        if path:
+            return path
+    return None
 
 
-elif app == "instagram":
-    bruhh = input("who/what do you want to spam: ")
-    ayoo = input("Choose your weapon (bee/shrek/sausage): ")
+def open_whatsapp_web():
+    """Open WhatsApp Web in Chromium forced to X11 so pyautogui can type into it."""
+    chromium = find_chromium()
+    if not chromium:
+        print("Chromium/Chrome not found. Install it, or open any X11/XWayland")
+        print("browser at https://web.whatsapp.com yourself, then continue.")
+        return
+    subprocess.Popen(
+        [chromium, "--ozone-platform=x11",
+         f"--user-data-dir={CHROMIUM_X11_PROFILE}",
+         "--no-first-run", "https://web.whatsapp.com"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
 
-    if bruhh == "enterprompt":                                #Enter the pre-set prompt that you want to type a particular person on instagram
-        promptlink = "enteryourlink"                          #Enter the link of the person's dm 
-        os.startfile(promptlink)                              #You can add more prompts of your own to type in your friends' dms
-        if ayoo == "bee":
-            bee()
-        elif ayoo == "shrek":
-            shrek()
-        elif ayoo == "sausage":
-            sausage()
+
+def spam(weapon_file):
+    """Type every non-empty line of the given script file as a separate message."""
+    path = os.path.join(SCRIPT_DIR, weapon_file)
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            text = line.rstrip("\n")
+            if not text.strip():
+                continue  # don't send empty messages
+            pyautogui.write(text)      # types the line (printable ASCII)
+            pyautogui.press("enter")   # Enter sends it on WhatsApp Web
+            time.sleep(DELAY_BETWEEN_LINES)
+
+
+def main():
+    weapon = input("Choose your weapon (bee/shrek/sausage): ").strip().lower()
+    if weapon not in WEAPONS:
+        print(f"Unknown weapon '{weapon}'. Pick one of: {', '.join(WEAPONS)}")
+        sys.exit(1)
+
+    print("\nOpening WhatsApp Web in Chromium (X11 mode)...")
+    open_whatsapp_web()
+
+    print(
+        "\nNow, in the Chromium window that just opened:\n"
+        "  1. Log in (scan the QR code -- first time only; the profile is saved).\n"
+        "  2. Click into the chat you want to send to, so the message box is focused.\n"
+        "  3. Leave that Chromium window on top / focused.\n"
+        "  (Use THIS Chromium window -- not Firefox/your normal browser, or the\n"
+        "   keystrokes won't land.)\n"
+    )
+    input("When the chat is open and focused, come back here and press Enter to start... ")
+
+    print("\nStarting in 5 seconds -- click into the WhatsApp Web message box NOW.")
+    print("(Kill-switch: throw the mouse into the top-left screen corner to abort.)")
+    for i in range(5, 0, -1):
+        print(f"  {i}...")
+        time.sleep(1)
+
+    try:
+        spam(WEAPONS[weapon])
+    except pyautogui.FailSafeException:
+        print("\nKill-switch triggered (mouse in top-left corner). Stopped.")
+    except KeyboardInterrupt:
+        print("\nStopped (Ctrl+C).")
+    else:
+        print("\nDone.")
+
+
+if __name__ == "__main__":
+    main()
