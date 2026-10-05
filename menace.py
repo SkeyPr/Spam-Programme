@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Types a movie script line-by-line into the currently focused WhatsApp Web chat.
 
-A joke/copypasta tool. Use it only on chats where the other person is in on
-the gag -- see the responsible-use note in the README.
+Windows build. A joke/copypasta tool -- use it only on chats where the other
+person is in on the gag (see the responsible-use note in the README).
+
+Run with:  python menace.py
 """
 
 import os
-import shutil
-import subprocess
 import sys
 import time
+import webbrowser
 
 import pyautogui
 
@@ -29,41 +30,19 @@ WEAPONS = {
     "sausage": "sausage.txt",
 }
 
-# Kill-switch: pyautogui's fail-safe. Slam the mouse pointer into the TOP-LEFT
-# corner of the screen at any time to abort (raises FailSafeException). No root
-# and no extra library needed, unlike the `keyboard` module.
+# Kill-switch: pyautogui's fail-safe. Slam the mouse pointer into ANY corner of
+# the screen to abort (raises FailSafeException). No root and no extra library
+# needed, unlike the `keyboard` module.
 pyautogui.FAILSAFE = True
 
-# --- Wayland note -----------------------------------------------------------
-# pyautogui types via XTEST, which only reaches X11 / XWayland windows. On a
-# Wayland session (GNOME, etc.) the default/snap browser usually runs as a
-# NATIVE Wayland client and receives NOTHING. So we launch Chromium forced into
-# X11 mode (--ozone-platform=x11) with its own profile; that window DOES receive
-# the keystrokes. (Verified on this machine.)
-CHROMIUM_X11_PROFILE = os.path.expanduser("~/snap/chromium/common/menace-profile")
-
-
-def find_chromium():
-    for name in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
-        path = shutil.which(name)
-        if path:
-            return path
-    return None
+# On Windows pyautogui types into whatever window is focused -- including any
+# browser -- so we just open WhatsApp Web in the default browser. (No XWayland
+# workaround is needed here; that's only for Linux/Wayland.)
 
 
 def open_whatsapp_web():
-    """Open WhatsApp Web in Chromium forced to X11 so pyautogui can type into it."""
-    chromium = find_chromium()
-    if not chromium:
-        print("Chromium/Chrome not found. Install it, or open any X11/XWayland")
-        print("browser at https://web.whatsapp.com yourself, then continue.")
-        return
-    subprocess.Popen(
-        [chromium, "--ozone-platform=x11",
-         f"--user-data-dir={CHROMIUM_X11_PROFILE}",
-         "--no-first-run", "https://web.whatsapp.com"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    """Open WhatsApp Web in the default browser."""
+    webbrowser.open("https://web.whatsapp.com")
 
 
 def spam(weapon_file):
@@ -85,21 +64,19 @@ def main():
         print(f"Unknown weapon '{weapon}'. Pick one of: {', '.join(WEAPONS)}")
         sys.exit(1)
 
-    print("\nOpening WhatsApp Web in Chromium (X11 mode)...")
+    print("\nOpening WhatsApp Web in your browser...")
     open_whatsapp_web()
 
     print(
-        "\nNow, in the Chromium window that just opened:\n"
-        "  1. Log in (scan the QR code -- first time only; the profile is saved).\n"
+        "\nNow, in the browser:\n"
+        "  1. Log in (scan the QR code if it's your first time).\n"
         "  2. Click into the chat you want to send to, so the message box is focused.\n"
-        "  3. Leave that Chromium window on top / focused.\n"
-        "  (Use THIS Chromium window -- not Firefox/your normal browser, or the\n"
-        "   keystrokes won't land.)\n"
+        "  3. Leave that browser window on top / focused.\n"
     )
     input("When the chat is open and focused, come back here and press Enter to start... ")
 
     print("\nStarting in 5 seconds -- click into the WhatsApp Web message box NOW.")
-    print("(Kill-switch: throw the mouse into the top-left screen corner to abort.)")
+    print("(Kill-switch: throw the mouse into any corner of the screen to abort.)")
     for i in range(5, 0, -1):
         print(f"  {i}...")
         time.sleep(1)
@@ -107,7 +84,7 @@ def main():
     try:
         spam(WEAPONS[weapon])
     except pyautogui.FailSafeException:
-        print("\nKill-switch triggered (mouse in top-left corner). Stopped.")
+        print("\nKill-switch triggered (mouse in a screen corner). Stopped.")
     except KeyboardInterrupt:
         print("\nStopped (Ctrl+C).")
     else:
